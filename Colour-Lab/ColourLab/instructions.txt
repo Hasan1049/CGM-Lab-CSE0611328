@@ -1,0 +1,36 @@
+COLOUR LAB - HOW TO PLAY
+
+Goal
+  The shape on the LEFT is already coloured. Make the same colour on the
+  shape in the MIDDLE by mixing 3 colours from the palette on the RIGHT.
+
+Controls
+  R  = Red       B  = Blue      Y  = Yellow
+  G  = Green     M  = Purple    C  = Cyan
+
+  Backspace = remove the last colour (press 3 times to remove all)
+  Enter     = check your mix (works when 3 colours are chosen)
+  Space     = go to the next shape after a green tick,
+              try the same shape again after a red cross,
+              play again after the winning cup
+  Esc       = quit
+
+How it works
+  1. Press 3 colour keys. Every key mixes into the middle shape and the
+     three round slots below it show your choices.
+  2. Press Enter.
+  3. Green tick = same colour, you move on. Red cross = try again.
+  4. Finish all 5 shapes (car, sunflower, apple, fish, balloon) to get
+     the winning cup.
+
+Tips
+  * The order of the colours does not matter, R R Y is the same as Y R R.
+  * The same colour can be used more than once.
+  * Click on the game window once so the keyboard works.
+
+How to run the project
+  1. Open this folder in VS Code and open a terminal (Ctrl + `).
+  2. Type:  make
+     (if "make" is not found, type:  mingw32-make)
+  3. The game is built into the build folder and starts by itself.
+  4. Type  make clean  to delete the build files.
