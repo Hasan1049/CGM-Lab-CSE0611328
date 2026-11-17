@@ -4,9 +4,9 @@ A colour mixing game for kids. It is made for the Computer Graphics
 and Multimedia Lab with C++, OpenGL 3.3 core, GLFW, GLAD and GLM.
 
 # Submitted To
- Audity Ghosh
+ Audity Ghosh,
  Lecturer, UITS | 
- Sirajam Samira
+ Sirajam Samira,
  Lecturer, UITS
 
 
