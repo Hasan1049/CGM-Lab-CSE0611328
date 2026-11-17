@@ -10,22 +10,22 @@ Controls
 
   Backspace = remove the last colour (press 3 times to remove all)
   Enter     = check your mix (works when 3 colours are chosen)
-  Space     = go to the next shape after a green tick,
-              try the same shape again after a red cross,
-              play again after the winning cup
+  Space     = play again after the winning cup
   Esc       = quit
 
 How it works
-  1. Press 3 colour keys. Every key mixes into the middle shape and the
-     three round slots below it show your choices.
+  1. Press 3 colour keys. Every key mixes into the middle shape.
   2. Press Enter.
-  3. Green tick = same colour, you move on. Red cross = try again.
-  4. Finish all 5 shapes (car, sunflower, apple, fish, balloon) to get
-     the winning cup.
+  3. Same colour as the left shape: you go straight to the next shape.
+     Different colour: the colours are cleared and you try the same shape again.
+  4. Finish all 4 shapes (sunflower, apple, fish, balloon) to get the
+     winning cup. Press Space to play again.
 
 Tips
   * The order of the colours does not matter, R R Y is the same as Y R R.
   * The same colour can be used more than once.
+  * The dots at the top left show the shapes, the bouncing dot is the
+    shape you are playing now.
   * Click on the game window once so the keyboard works.
 
 How to run the project
