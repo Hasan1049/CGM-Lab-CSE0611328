@@ -1,15 +1,30 @@
 # Colour Lab
 
-A very small colour mixing game for kids. It is made for the Computer Graphics
+A colour mixing game for kids. It is made for the Computer Graphics
 and Multimedia Lab with C++, OpenGL 3.3 core, GLFW, GLAD and GLM.
 
+## Submitted To:
+
+## Audity Ghosh
+## Lecturer, UITS
+  
+## Sirajam Samira
+## Lecturer, UITS
+
+
+## Submitted By:
+## Md Hasan Mazumder  ID: 0432410005101049
+## Salimullah Pavel   ID: 0432410005101048
+## Ashik Sarker       ID: 0432410005101017
+
 ## The idea
-* There are 5 simple shapes: car, sunflower, apple, fish and balloon.
+* There are 4 simple shapes: sunflower, apple, fish and balloon.
 * The shape on the left is coloured with a secret mix of 3 palette colours.
 * The kid presses 3 colour keys (R, B, Y, G, M, C) and the same shape in the
-  middle gets mixed colours step by step.
-* Enter checks the answer: green tick = correct, red cross = try again.
-* After all 5 shapes the game shows a winning cup.
+  middle gets the mixed colour.
+* Enter checks the answer. A correct mix goes straight to the next shape, a
+  wrong mix clears the colours so the same shape can be tried again.
+* After all 4 shapes the game shows a winning cup. Space starts it again.
 
 ## How to run (Windows + MinGW)
 1. Open the `ColourLab` folder in VS Code and open a terminal.
@@ -39,15 +54,12 @@ ColourLab/
 * When Enter is pressed the game checks if every RGB channel of the player's
   mix is within 0.01 of the target. The order of the colours does not matter.
 
-## Transformation and light animation
-* Rotate: the car wheels turn clockwise, the sunflower petals turn, and the
-  tick and cross are made from rotated rectangles.
-* Translate: the fish moves up and down along the y axis, and the middle panel
-  shakes sideways after a wrong answer.
-* Scale: a colour button grows a little when its key is pressed, and the tick
-  or cross pops in.
-* Light animation: a `brightness` value in the fragment shader changes with
-  `sin(time)`, so both shapes get a gentle light pulse.
+## Transformations used
+* Rotate: the sunflower petals turn, and the cup bowl is a trapezoid turned
+  upside down.
+* Translate: the fish moves up and down along the y axis, and the dot of the
+  current shape bounces.
+* Scale: a colour button grows a little when its key is pressed.
 
 ## Change a puzzle
 Open `src/main.cpp` and edit the `solution` array. The numbers are palette
