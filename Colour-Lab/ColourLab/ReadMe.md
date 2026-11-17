@@ -3,19 +3,19 @@
 A colour mixing game for kids. It is made for the Computer Graphics
 and Multimedia Lab with C++, OpenGL 3.3 core, GLFW, GLAD and GLM.
 
-## Submitted To:
+# Submitted To:
 
-## Audity Ghosh
-## Lecturer, UITS
+# Audity Ghosh
+ Lecturer, UITS
   
-## Sirajam Samira
-## Lecturer, UITS
+# Sirajam Samira
+ Lecturer, UITS
 
 
-## Submitted By:
-## Md Hasan Mazumder  ID: 0432410005101049
-## Salimullah Pavel   ID: 0432410005101048
-## Ashik Sarker       ID: 0432410005101017
+# Submitted By:
+ Md Hasan Mazumder  ID: 0432410005101049
+ Salimullah Pavel   ID: 0432410005101048
+ Ashik Sarker       ID: 0432410005101017
 
 ## The idea
 * There are 4 simple shapes: sunflower, apple, fish and balloon.
