@@ -7,12 +7,12 @@
 
 #include <iostream>
 #include <cmath>
-#include <algorithm>
 
 // Colour Lab: a small colour mixing game for kids.
 // The left shape shows the target colour. The kid mixes 3 colours from the
 // palette on the right and sees the mix on the middle shape.
 
+// Vertex shader: moves every point with the transform matrix
 const char* vertexShaderSource = "#version 330 core\n"
 "layout (location = 0) in vec3 aPos;\n"
 "uniform mat4 transform;\n"
@@ -21,14 +21,13 @@ const char* vertexShaderSource = "#version 330 core\n"
 "   gl_Position = transform * vec4(aPos, 1.0);\n"
 "}\0";
 
-// color is the part colour, brightness is used for the light animation
+// Fragment shader: paints every point with one colour
 const char* fragmentShaderSource = "#version 330 core\n"
 "out vec4 FragColor;\n"
 "uniform vec4 color;\n"
-"uniform float brightness;\n"
 "void main()\n"
 "{\n"
-"   FragColor = vec4(color.rgb * brightness, color.a);\n"
+"   FragColor = color;\n"
 "}\0";
 
 void framebuffer_size_callback(GLFWwindow* window, int width, int height);
@@ -38,23 +37,23 @@ const unsigned int SCR_WIDTH = 1000;
 const unsigned int SCR_HEIGHT = 600;
 const float PI = 3.14159265f;
 
-enum { P_RECT, P_CIRCLE, P_TRI, P_TRAP };   // the 4 basic shapes everything is built from
-enum GameState { STATE_PLAYING, STATE_SUCCESS, STATE_FAIL, STATE_FINISHED };
+// The 4 basic shapes everything is built from
+enum { P_RECT, P_CIRCLE, P_TRI, P_TRAP };
 
 unsigned int shaderProgram, VAOs[4], VBOs[4];
-int transformLoc, colorLoc, brightnessLoc, vertexCounts[4];
+int transformLoc, colorLoc, vertexCounts[4];
 GLenum drawModes[4];
 glm::mat4 projection;   // keeps circles round on a wide window
-float brightness = 1.0f, animTime = 0.0f;
+float animTime = 0.0f;
 
-// Palette order matches the keys R, B, Y, G, M, C
+// The 6 palette colours, in the order of the keys R, B, Y, G, M, C
 const glm::vec3 paletteColor[6] = {
     glm::vec3(0.88f, 0.19f, 0.19f), glm::vec3(0.10f, 0.45f, 0.78f), glm::vec3(1.00f, 0.82f, 0.18f),
     glm::vec3(0.18f, 0.63f, 0.27f), glm::vec3(0.41f, 0.24f, 0.84f), glm::vec3(0.27f, 0.67f, 0.98f)
 };
 const int paletteKeys[6] = { GLFW_KEY_R, GLFW_KEY_B, GLFW_KEY_Y, GLFW_KEY_G, GLFW_KEY_M, GLFW_KEY_C };
 
-// Each letter is a 5 x 7 grid of tiny squares
+// Tiny 5 x 7 pictures of the letters shown on the palette buttons
 const char* letters[6][7] = {
     { "####.", "#...#", "#...#", "####.", "#.#..", "#..#.", "#...#" },   // R
     { "####.", "#...#", "#...#", "####.", "#...#", "#...#", "####." },   // B
@@ -64,20 +63,20 @@ const char* letters[6][7] = {
     { ".###.", "#...#", "#....", "#....", "#....", "#...#", ".###." }    // C
 };
 
-// The secret 3 colours (palette numbers) behind each shape: car, sunflower, apple, fish, balloon
-const int NUM_SHAPES = 5;
-const int solution[NUM_SHAPES][3] = { {0, 0, 2}, {2, 2, 0}, {0, 0, 4}, {5, 5, 3}, {4, 4, 5} };
+// The secret 3 colours (palette numbers) of each shape: sunflower, apple, fish, balloon
+const int NUM_SHAPES = 4;
+const int solution[NUM_SHAPES][3] = { {2, 2, 0}, {0, 0, 4}, {5, 5, 3}, {4, 4, 5} };
 
-const glm::vec3 emptyColor(0.88f, 0.89f, 0.92f), navyColor(0.16f, 0.18f, 0.35f), skyColor(0.65f, 0.83f, 0.98f);
-const glm::vec3 greenColor(0.15f, 0.72f, 0.32f), redColor(0.88f, 0.22f, 0.22f);
+const glm::vec3 emptyColor(0.88f, 0.89f, 0.92f), navyColor(0.16f, 0.18f, 0.35f), skyColor(0.45f, 0.78f, 1.00f);
 
-GameState gameState = STATE_PLAYING;
+// Game state
+bool finished = false;
 int currentShape = 0, chosen[3], chosenCount = 0;
-glm::vec3 targetColor, displayColor = emptyColor;
-float resultTime = -10.0f;
+glm::vec3 targetColor;
 float lastPressTime[6] = { -10.0f, -10.0f, -10.0f, -10.0f, -10.0f, -10.0f };
 bool keyWasDown[GLFW_KEY_LAST + 1] = { false };
 
+// Sends the points of one basic shape to the GPU
 void createShape(int type, const float* data, int vertexCount, GLenum mode)
 {
     glGenVertexArrays(1, &VAOs[type]);
@@ -98,10 +97,10 @@ void draw(int type, const glm::mat4& group, float x, float y, float w, float h, 
     glm::mat4 model = glm::translate(group, glm::vec3(x, y, 0.0f));
     model = glm::rotate(model, glm::radians(angle), glm::vec3(0.0f, 0.0f, 1.0f));
     model = glm::scale(model, glm::vec3(w, h, 1.0f));
+
     glm::mat4 transform = projection * model;
     glUniformMatrix4fv(transformLoc, 1, GL_FALSE, glm::value_ptr(transform));
     glUniform4f(colorLoc, c.r, c.g, c.b, alpha);
-    glUniform1f(brightnessLoc, brightness);
     glBindVertexArray(VAOs[type]);
     glDrawArrays(drawModes[type], 0, vertexCounts[type]);
 }
@@ -112,13 +111,7 @@ float popScale(float age, float duration, float amount)
     return (age >= duration) ? 1.0f : 1.0f + amount * std::sin(age / duration * PI);
 }
 
-// Starts big, overshoots a bit and settles. Gives the tick and cross their bounce.
-float easeOutBack(float t)
-{
-    float u = t - 1.0f;
-    return 1.0f + 2.70158f * u * u * u + 1.70158f * u * u;
-}
-
+// The target colour of a shape: the average of its 3 secret colours
 glm::vec3 targetColorOf(int index)
 {
     glm::vec3 sum(0.0f);
@@ -127,7 +120,7 @@ glm::vec3 targetColorOf(int index)
     return sum / 3.0f;
 }
 
-// Average of the colours picked so far, grey when nothing is picked
+// The player's mix: the average of the colours picked so far (grey if none)
 glm::vec3 mixOfChosen()
 {
     glm::vec3 sum(0.0f);
@@ -136,28 +129,28 @@ glm::vec3 mixOfChosen()
     return (chosenCount == 0) ? emptyColor : sum / (float)chosenCount;
 }
 
+// Loads a shape: clears the picked colours and sets its target colour
 void startShape(int index)
 {
     if (index >= NUM_SHAPES)
     {
-        gameState = STATE_FINISHED;   // every shape is done, show the cup
+        finished = true;   // all shapes are done, the cup is shown
         return;
     }
+    finished = false;
     currentShape = index;
     chosenCount = 0;
     targetColor = targetColorOf(index);
-    gameState = STATE_PLAYING;
 }
 
-void checkAnswer()
+// True when the player's mix has the same colour as the target
+bool mixMatchesTarget()
 {
-    // The same final colour counts as a match, even if the order is different
     glm::vec3 d = glm::abs(mixOfChosen() - targetColor);
-    gameState = (d.r < 0.01f && d.g < 0.01f && d.b < 0.01f) ? STATE_SUCCESS : STATE_FAIL;
-    resultTime = animTime;
+    return d.r < 0.01f && d.g < 0.01f && d.b < 0.01f;
 }
 
-// True only on the frame when the key goes down, so holding a key does nothing extra
+// True only on the frame when a key goes down, so holding a key does nothing extra
 bool keyPressedOnce(GLFWwindow* window, int key)
 {
     bool down = glfwGetKey(window, key) == GLFW_PRESS;
@@ -166,6 +159,7 @@ bool keyPressedOnce(GLFWwindow* window, int key)
     return pressed;
 }
 
+// Reads the game keys: colours, Backspace, Enter and Space
 void handleGameKeys(GLFWwindow* window)
 {
     bool colourKey[6];
@@ -174,47 +168,39 @@ void handleGameKeys(GLFWwindow* window)
     bool backspaceKey = keyPressedOnce(window, GLFW_KEY_BACKSPACE);
     bool enterKey = keyPressedOnce(window, GLFW_KEY_ENTER);
     bool spaceKey = keyPressedOnce(window, GLFW_KEY_SPACE);
-    if (gameState == STATE_PLAYING)
+
+    // After the cup, Space starts the game again
+    if (finished)
     {
-        for (int i = 0; i < 6; i++)
-            if (colourKey[i] && chosenCount < 3)
-            {
-                chosen[chosenCount++] = i;
-                lastPressTime[i] = animTime;
-            }
-        if (backspaceKey && chosenCount > 0)
-            chosenCount--;   // each press removes one colour, so 3 presses clear all
-        if (enterKey && chosenCount == 3)
-            checkAnswer();
+        if (spaceKey)
+            startShape(0);
+        return;
     }
-    else if (spaceKey)   // next shape after a tick, same shape after a cross, restart after the cup
-        startShape(gameState == STATE_SUCCESS ? currentShape + 1 : (gameState == STATE_FAIL ? currentShape : 0));
+
+    // Colour keys add a colour (3 at most)
+    for (int i = 0; i < 6; i++)
+        if (colourKey[i] && chosenCount < 3)
+        {
+            chosen[chosenCount++] = i;
+            lastPressTime[i] = animTime;
+        }
+
+    // Backspace removes the last colour
+    if (backspaceKey && chosenCount > 0)
+        chosenCount--;
+
+    // Enter with 3 colours: a match goes to the next shape, otherwise the same shape starts again
+    if (enterKey && chosenCount == 3)
+        startShape(mixMatchesTarget() ? currentShape + 1 : currentShape);
 }
 
-// ---------- The six shapes ----------
-// Every picture is drawn inside a box from -0.5 to 0.5.
-// "body" is the colour the player fills, the other parts have fixed colours.
-
+// Draws one of the four pictures inside a box from -0.5 to 0.5.
+// "body" is the part the player colours, the other parts have fixed colours.
 void drawShapeIcon(int index, const glm::mat4& group, glm::vec3 body)
 {
-    glm::vec3 black(0.12f, 0.12f, 0.14f), white(1.0f), glass(0.78f, 0.92f, 1.0f);
-    glm::vec3 green(0.20f, 0.55f, 0.22f), brown(0.42f, 0.26f, 0.13f);
+    glm::vec3 black(0.12f, 0.12f, 0.14f), white(1.0f), green(0.20f, 0.55f, 0.22f), brown(0.42f, 0.26f, 0.13f);
+
     if (index == 0)
-    {
-        // Car: only the tyres turn, clockwise (a negative angle)
-        glm::mat4 g = glm::translate(group, glm::vec3(0.0f, 0.08f, 0.0f));
-        draw(P_RECT, g, 0.0f, -0.12f, 1.0f, 0.28f, body);
-        draw(P_TRAP, g, -0.02f, 0.11f, 0.6f, 0.22f, body);
-        draw(P_TRAP, g, -0.02f, 0.12f, 0.46f, 0.15f, glass);
-        for (int w = -1; w <= 1; w += 2)
-        {
-            draw(P_CIRCLE, g, w * 0.28f, -0.27f, 0.28f, 0.28f, black);
-            draw(P_CIRCLE, g, w * 0.28f, -0.27f, 0.14f, 0.14f, glm::vec3(0.75f));
-            draw(P_RECT, g, w * 0.28f, -0.27f, 0.12f, 0.025f, black, -animTime * 250.0f);
-            draw(P_RECT, g, w * 0.28f, -0.27f, 0.12f, 0.025f, black, -animTime * 250.0f + 90.0f);
-        }
-    }
-    else if (index == 1)
     {
         // Sunflower: the petals turn slowly, the black centre and the stem stay fixed
         draw(P_RECT, group, 0.0f, -0.25f, 0.06f, 0.5f, green);
@@ -227,7 +213,7 @@ void drawShapeIcon(int index, const glm::mat4& group, glm::vec3 body)
         }
         draw(P_CIRCLE, group, 0.0f, 0.14f, 0.30f, 0.30f, black);
     }
-    else if (index == 2)
+    else if (index == 1)
     {
         // Apple: the body is made from 3 overlapping circles
         draw(P_CIRCLE, group, -0.12f, -0.02f, 0.50f, 0.50f, body);
@@ -237,7 +223,7 @@ void drawShapeIcon(int index, const glm::mat4& group, glm::vec3 body)
         draw(P_CIRCLE, group, 0.13f, 0.30f, 0.20f, 0.10f, green, 25.0f);
         draw(P_CIRCLE, group, -0.20f, 0.10f, 0.12f, 0.07f, white, 35.0f, 0.4f);   // shine
     }
-    else if (index == 3)
+    else if (index == 2)
     {
         // Fish: faces right, the body is coloured and the eye is fixed
         draw(P_TRI, group, -0.33f, 0.0f, 0.40f, 0.26f, body, -90.0f);
@@ -261,12 +247,12 @@ void drawShapeIcon(int index, const glm::mat4& group, glm::vec3 body)
 // down along the y axis, nothing else is moved or rotated.
 glm::mat4 makeShapeGroup(int index, float cx, float cy, float size)
 {
-    float moveY = (index == 3) ? std::sin(animTime * 2.0f) * 0.12f * size : 0.0f;
+    float moveY = (index == 2) ? std::sin(animTime * 2.0f) * 0.12f * size : 0.0f;
     glm::mat4 m = glm::translate(glm::mat4(1.0f), glm::vec3(cx, cy + moveY, 0.0f));
     return glm::scale(m, glm::vec3(size, size, 1.0f));
 }
 
-// A card with a coloured border
+// Draws a card with a coloured border
 void drawPanel(float cx, float cy, float w, float h, glm::vec3 border)
 {
     glm::mat4 identity(1.0f);
@@ -274,6 +260,7 @@ void drawPanel(float cx, float cy, float w, float h, glm::vec3 border)
     draw(P_RECT, identity, cx, cy, w - 0.04f, h - 0.04f, glm::vec3(1.0f, 0.98f, 0.92f));
 }
 
+// Draws a letter from the tiny pixel table, one small square per pixel
 void drawLetter(const glm::mat4& g, int index, float cell, glm::vec3 color)
 {
     for (int row = 0; row < 7; row++)
@@ -282,38 +269,34 @@ void drawLetter(const glm::mat4& g, int index, float cell, glm::vec3 color)
                 draw(P_RECT, g, (col - 2) * cell, (3 - row) * cell, cell * 0.95f, cell * 0.95f, color);
 }
 
-// One dot per shape. Gold = done, the bouncing white one = current.
-void drawProgress(float cx, float cy, int doneCount, bool showCurrent)
+// Draws one dot per shape at the top left, the dot of the current shape bounces up and down
+void drawProgress(float cx, float cy)
 {
     glm::mat4 identity(1.0f);
+    glm::vec3 yellow(1.0f, 0.80f, 0.15f), green(0.15f, 0.72f, 0.32f);
     for (int i = 0; i < NUM_SHAPES; i++)
     {
         float x = cx + (i - (NUM_SHAPES - 1) / 2.0f) * 0.18f, y = cy;
-        bool current = (i == doneCount && showCurrent);
-        glm::vec3 c = (i < doneCount) ? glm::vec3(1.0f, 0.80f, 0.15f) : (current ? glm::vec3(1.0f) : glm::vec3(0.80f, 0.85f, 0.95f));
-        if (current)
-            y += std::fabs(std::sin(animTime * 5.0f)) * 0.04f;   // the current dot bounces
+        if (i == currentShape)
+            y += std::fabs(std::sin(animTime * 5.0f)) * 0.04f;
         draw(P_CIRCLE, identity, x, y, 0.115f, 0.115f, navyColor);
-        draw(P_CIRCLE, identity, x, y, 0.09f, 0.09f, c);
+        draw(P_CIRCLE, identity, x, y, 0.09f, 0.09f, (i == NUM_SHAPES - 1) ? green : yellow);
     }
 }
 
+// Draws the playing screen: target panel, player panel, palette and progress dots
 void drawGameScreen()
 {
     glm::mat4 identity(1.0f);
     float ax = -1.12f, bx = 0.0f, paletteX = 1.12f;
-    float age = animTime - resultTime;
-    // A wrong answer shakes the middle panel left and right
-    if (gameState == STATE_FAIL && age < 0.6f)
-        bx += std::sin(age * 45.0f) * 0.03f * (1.0f - age / 0.6f);
+
+    // Left panel shows the target colour, middle panel shows the player's mix
     drawPanel(ax, 0.0f, 1.0f, 1.0f, navyColor);
-    drawPanel(bx, 0.0f, 1.0f, 1.0f, (gameState == STATE_PLAYING) ? navyColor : (gameState == STATE_SUCCESS ? greenColor : redColor));
-    // Light animation: both shapes get the same gentle brightness pulse
-    brightness = 1.0f + 0.08f * std::sin(animTime * 2.0f);
+    drawPanel(bx, 0.0f, 1.0f, 1.0f, navyColor);
     drawShapeIcon(currentShape, makeShapeGroup(currentShape, ax, 0.0f, 0.8f), targetColor);
-    drawShapeIcon(currentShape, makeShapeGroup(currentShape, bx, 0.0f, 0.8f), displayColor);
-    brightness = 1.0f;
-    // Colour palette: each button pops (scales up) when its key is pressed
+    drawShapeIcon(currentShape, makeShapeGroup(currentShape, bx, 0.0f, 0.8f), mixOfChosen());
+
+    // Right panel is the colour palette, a button pops (scales up) when its key is pressed
     drawPanel(paletteX, 0.0f, 1.0f, 0.9f, navyColor);
     for (int i = 0; i < 6; i++)
     {
@@ -324,33 +307,11 @@ void drawGameScreen()
         draw(P_RECT, g, 0.0f, 0.0f, 0.25f, 0.25f, paletteColor[i]);
         drawLetter(g, i, 0.026f, glm::vec3(0.13f, 0.14f, 0.20f));
     }
-    // Three slots show the colours picked so far
-    for (int k = 0; k < 3; k++)
-    {
-        draw(P_CIRCLE, identity, (k - 1) * 0.26f, -0.68f, 0.22f, 0.22f, navyColor);
-        draw(P_CIRCLE, identity, (k - 1) * 0.26f, -0.68f, 0.18f, 0.18f, (k < chosenCount) ? paletteColor[chosen[k]] : glm::vec3(0.93f, 0.94f, 0.97f));
-    }
-    drawProgress(ax, 0.76f, currentShape + (gameState == STATE_SUCCESS ? 1 : 0), gameState != STATE_SUCCESS);
-    // Tick or cross pops in above the middle panel
-    if (gameState != STATE_PLAYING)
-    {
-        float s = easeOutBack(std::min(age / 0.45f, 1.0f));
-        bool ok = (gameState == STATE_SUCCESS);
-        glm::mat4 g = glm::scale(glm::translate(identity, glm::vec3(bx, 0.72f, 0.0f)), glm::vec3(s, s, 1.0f));
-        draw(P_CIRCLE, g, 0.0f, 0.0f, 0.50f, 0.50f, glm::vec3(1.0f));
-        draw(P_CIRCLE, g, 0.0f, 0.0f, 0.44f, 0.44f, ok ? greenColor : redColor);
-        if (ok)
-        {
-            draw(P_RECT, g, -0.08f, -0.04f, 0.13f, 0.045f, glm::vec3(1.0f), -45.0f);
-            draw(P_RECT, g, 0.045f, 0.005f, 0.25f, 0.045f, glm::vec3(1.0f), 45.0f);
-        }
-        else
-            for (int sign = -1; sign <= 1; sign += 2)   // the cross is two strokes turned +45 and -45 degrees
-                draw(P_RECT, g, 0.0f, 0.0f, 0.26f, 0.05f, glm::vec3(1.0f), 45.0f * sign);
-    }
+
+    drawProgress(ax, 0.76f);
 }
 
-// The winning cup, it just stands still in the middle
+// Draws the winning cup, it just stands still in the middle
 void drawCup()
 {
     glm::mat4 g = glm::scale(glm::translate(glm::mat4(1.0f), glm::vec3(0.0f, 0.05f, 0.0f)), glm::vec3(1.5f, 1.5f, 1.0f));
@@ -385,11 +346,14 @@ unsigned int compileShader(GLenum type, const char* source)
 
 int main()
 {
+    // Start GLFW and ask for OpenGL 3.3 core
     glfwInit();
     glfwWindowHint(GLFW_CONTEXT_VERSION_MAJOR, 3);
     glfwWindowHint(GLFW_CONTEXT_VERSION_MINOR, 3);
     glfwWindowHint(GLFW_OPENGL_PROFILE, GLFW_OPENGL_CORE_PROFILE);
     glfwWindowHint(GLFW_RESIZABLE, GL_FALSE);   // fixed size keeps the layout safe
+
+    // Create the window
     GLFWwindow* window = glfwCreateWindow(SCR_WIDTH, SCR_HEIGHT, "Colour Lab", NULL, NULL);
     if (window == NULL)
     {
@@ -400,12 +364,14 @@ int main()
     glfwMakeContextCurrent(window);
     glfwSetFramebufferSizeCallback(window, framebuffer_size_callback);
 
+    // Load the OpenGL functions with GLAD
     if (!gladLoadGLLoader((GLADloadproc)glfwGetProcAddress))
     {
         std::cout << "Failed to initialize GLAD" << std::endl;
         return -1;
     }
-    // Compile and link the shaders
+
+    // Compile both shaders and link them into one program
     unsigned int vertexShader = compileShader(GL_VERTEX_SHADER, vertexShaderSource);
     unsigned int fragmentShader = compileShader(GL_FRAGMENT_SHADER, fragmentShaderSource);
     shaderProgram = glCreateProgram();
@@ -422,18 +388,17 @@ int main()
     }
     glDeleteShader(vertexShader);
     glDeleteShader(fragmentShader);
-
     transformLoc = glGetUniformLocation(shaderProgram, "transform");
     colorLoc = glGetUniformLocation(shaderProgram, "color");
-    brightnessLoc = glGetUniformLocation(shaderProgram, "brightness");
 
-    // Rectangle (2 triangles), triangle pointing up, and a trapezoid for the car roof
+    // Points of the basic shapes: rectangle (2 triangles), triangle pointing up, trapezoid
     float rectVertices[] = { 0.5f, 0.5f, 0.0f, 0.5f, -0.5f, 0.0f, -0.5f, -0.5f, 0.0f,
                              0.5f, 0.5f, 0.0f, -0.5f, -0.5f, 0.0f, -0.5f, 0.5f, 0.0f };
     float triVertices[] = { -0.5f, -0.5f, 0.0f, 0.5f, -0.5f, 0.0f, 0.0f, 0.5f, 0.0f };
     float trapVertices[] = { -0.5f, -0.5f, 0.0f, 0.5f, -0.5f, 0.0f, 0.3f, 0.5f, 0.0f,
                              -0.5f, -0.5f, 0.0f, 0.3f, 0.5f, 0.0f, -0.3f, 0.5f, 0.0f };
-    // Circle: a triangle fan, centre first and then points around it
+
+    // Circle: a triangle fan, the centre first and then 48 points around it
     const int SEGMENTS = 48;
     float circleVertices[(SEGMENTS + 2) * 3] = { 0.0f, 0.0f, 0.0f };
     for (int i = 0; i <= SEGMENTS; i++)
@@ -441,55 +406,70 @@ int main()
         circleVertices[(i + 1) * 3 + 0] = 0.5f * std::cos(2.0f * PI * i / SEGMENTS);
         circleVertices[(i + 1) * 3 + 1] = 0.5f * std::sin(2.0f * PI * i / SEGMENTS);
     }
+
+    // Send all four shapes to the GPU
     createShape(P_RECT, rectVertices, 6, GL_TRIANGLES);
     createShape(P_CIRCLE, circleVertices, SEGMENTS + 2, GL_TRIANGLE_FAN);
     createShape(P_TRI, triVertices, 3, GL_TRIANGLES);
     createShape(P_TRAP, trapVertices, 6, GL_TRIANGLES);
 
-    glEnable(GL_BLEND);   // needed for the see-through shine spots
+    // Blending is needed for the see-through shine spots
+    glEnable(GL_BLEND);
     glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+
+    // Projection that keeps circles round on the wide window
     projection = glm::ortho(-(float)SCR_WIDTH / SCR_HEIGHT, (float)SCR_WIDTH / SCR_HEIGHT, -1.0f, 1.0f);
+
+    // Show the controls in the terminal
     std::cout << "Colour Lab controls\n"
               << "  R B Y G M C : pick a colour (3 colours max)\n"
               << "  Backspace   : remove the last colour\n"
               << "  Enter       : check your mix\n"
-              << "  Space       : next shape (after a tick), try again (after a cross), restart (after the cup)\n"
+              << "  Space       : play again (after the cup)\n"
               << "  Esc         : quit" << std::endl;
+
     startShape(0);
 
+    // Game loop: read the keys, then draw the current screen
     while (!glfwWindowShouldClose(window))
     {
         animTime = (float)glfwGetTime();
         processInput(window);
         handleGameKeys(window);
-        // The shown colour slides smoothly towards the real mix
-        displayColor += (mixOfChosen() - displayColor) * 0.12f;
-        glClearColor(skyColor.r, skyColor.g, skyColor.b, 1.0f);   // plain sky colour
+
+        glClearColor(skyColor.r, skyColor.g, skyColor.b, 1.0f);   // plain background colour
         glClear(GL_COLOR_BUFFER_BIT);
         glUseProgram(shaderProgram);
-        if (gameState == STATE_FINISHED)
+
+        if (finished)
             drawCup();
         else
             drawGameScreen();
+
         glfwSwapBuffers(window);
         glfwPollEvents();
     }
+
+    // Clean up
     for (int i = 0; i < 4; i++)
     {
         glDeleteVertexArrays(1, &VAOs[i]);
         glDeleteBuffers(1, &VBOs[i]);
     }
     glDeleteProgram(shaderProgram);
+
     glfwTerminate();
     return 0;
 }
 
+// Closes the window when Esc is pressed
 void processInput(GLFWwindow *window)
 {
     if (glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS)
         glfwSetWindowShouldClose(window, true);
 }
 
+// Keeps the OpenGL viewport in step with the window size
 void framebuffer_size_callback(GLFWwindow* window, int width, int height)
 {
     glViewport(0, 0, width, height);
